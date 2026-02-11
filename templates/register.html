@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Inscription · Groupie Tracker</title>
+    <link rel="stylesheet" href="/static/CSS/styles.css">
+    <link rel="stylesheet" href="/static/CSS/login.css">
+  </head>
+  <body>
+    <main class="login-container">
+      <div class="login-box">
+        <div class="login-header">
+          <h1 class="gold-text-gradient">Groupie Tracker</h1>
+          <p>Créez votre compte pour découvrir les concerts</p>
+        </div>
+
+        <form class="login-form" method="POST" action="/register">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input 
+              type="email" 
+              id="email" 
+              name="email" 
+              placeholder="Entrez votre email"
+              required
+            >
+          </div>
+
+
+          <div class="form-group">
+            <label for="password">Mot de passe</label>
+            <input 
+              type="password" 
+              id="password" 
+              name="password" 
+              placeholder="Créez un mot de passe"
+              required
+              minlength="8"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="confirm-password">Confirmer le mot de passe</label>
+            <input 
+              type="password" 
+              id="confirm-password" 
+              name="confirm_password" 
+              placeholder="Confirmez votre mot de passe"
+              required
+              minlength="8"
+            >
+          </div>
+
+          <button type="submit" class="login-button">S'inscrire</button>
+        </form>
+
+        <div class="login-footer">
+          <p>Vous avez déjà un compte ? <a href="/login">Se connecter</a></p>
+        </div>
+      </div>
+
+      <div class="login-background">
+        <div class="vinyl-decoration"></div>
+      </div>
+    </main>
+  </body>
+</html>
