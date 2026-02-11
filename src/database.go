@@ -3,7 +3,8 @@ package src
 import (
 	"database/sql"
 	"fmt"
-	"time"
+	"net/url"
+	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -11,57 +12,32 @@ import (
 var DB *sql.DB
 
 func ConnectDB() (*sql.DB, error) {
-	if DB != nil {
-		if err := DB.Ping(); err == nil {
-			return DB, nil
-		}
-		DB.Close()
-		DB = nil
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		return nil, fmt.Errorf("DATABASE_URL non définie")
 	}
 
-	host := getEnvOrDefault("DB_HOST", DefaultDBHost)
-	port := getEnvOrDefault("DB_PORT", DefaultDBPort)
-	user := getEnvOrDefault("DB_USER", DefaultDBUser)
-	password := getEnvOrDefault("DB_PASSWORD", DefaultDBPassword)
-	name := getEnvOrDefault("DB_NAME", DefaultDBName)
-
-	dsnWithoutDB := fmt.Sprintf("%s:%s@tcp(%s:%s)/?parseTime=true&charset=utf8mb4&loc=Local", user, password, host, port)
-	tempDB, err := sql.Open("mysql", dsnWithoutDB)
+	u, err := url.Parse(dbURL)
 	if err != nil {
-		return nil, fmt.Errorf("échec ouverture connexion MySQL: %w", err)
-	}
-	defer tempDB.Close()
-
-	tempDB.SetConnMaxLifetime(5 * time.Second)
-	if err := tempDB.Ping(); err != nil {
-		return nil, fmt.Errorf("MySQL ne répond pas sur %s:%s - %w", host, port, err)
+		return nil, err
 	}
 
-	var dbExists int
-	err = tempDB.QueryRow("SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?", name).Scan(&dbExists)
-	if err != nil {
-		return nil, fmt.Errorf("erreur vérification base de données: %w", err)
-	}
+	password, _ := u.User.Password()
 
-	if dbExists == 0 {
-		_, err = tempDB.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", name))
-		if err != nil {
-			return nil, fmt.Errorf("impossible de créer la base '%s': %w", name, err)
-		}
-	}
+	dsn := fmt.Sprintf("%s:%s@tcp(%s)%s?parseTime=true&charset=utf8mb4&loc=Local",
+		u.User.Username(),
+		password,
+		u.Host,
+		u.Path,
+	)
 
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&loc=Local", user, password, host, port, name)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("échec ouverture connexion à la base '%s': %w", name, err)
+		return nil, err
 	}
 
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
-
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("échec ping base '%s': %w", name, err)
+		return nil, err
 	}
 
 	DB = db
