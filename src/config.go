@@ -11,7 +11,6 @@ const (
 	LocationsEndpoint  = BaseAPI + "/locations"
 	DatesEndpoint      = BaseAPI + "/dates"
 	RelationsEndpoint  = BaseAPI + "/relation"
-	ServerAddress      = ":8080"
 	ReadHeaderTimeout  = 5 * time.Second
 	ClientTimeout      = 10 * time.Second
 	RefreshPath        = "/refresh"

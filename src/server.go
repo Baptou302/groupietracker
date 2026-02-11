@@ -94,28 +94,24 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/legal/privacy", s.HandleLegalPrivacy)
 	mux.HandleFunc("/legal/cookies", s.HandleLegalCookies)
 	mux.HandleFunc("/legal/mentions", s.HandleLegalMentions)
-	
+
 	fileServer := http.FileServer(http.Dir("static"))
 	mux.Handle(StaticPrefix, http.StripPrefix(StaticPrefix, fileServer))
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	server := &http.Server{
-		Addr:              ServerAddress,
+		Addr:              ":" + port,
 		Handler:           mux,
 		ReadHeaderTimeout: ReadHeaderTimeout,
 	}
 
-	certExists := fileExists(CertFile)
-	keyExists := fileExists(KeyFile)
-	
-	if certExists && keyExists {
-		store.Options.Secure = true
-		log.Printf("Serveur lancé: https://localhost%s", ServerAddress)
-		return server.ListenAndServeTLS(CertFile, KeyFile)
-	} else {
-		store.Options.Secure = false
-		log.Printf("Serveur lancé: http://localhost%s", ServerAddress)
-		return server.ListenAndServe()
-	}
+	log.Printf("Serveur lancé sur le port %s", port)
+
+	return server.ListenAndServe()
 }
 
 func (s *Server) RefreshData() error {
