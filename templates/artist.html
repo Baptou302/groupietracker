@@ -30,6 +30,12 @@
           <p>Création&nbsp;: {{.Artist.CreationDate}}</p>
           <p>Premier album&nbsp;: {{formatDate .Artist.FirstAlbum}}</p>
           <p>Nombre de concerts connus&nbsp;: {{len .Artist.ConcertDates}}</p>
+          {{if .User}}
+          <button id="fav-btn" class="fav-btn {{if .IsFavorite}}is-fav{{end}}" data-artist-id="{{.Artist.ID}}" title="{{if .IsFavorite}}Retirer des favoris{{else}}Ajouter aux favoris{{end}}">
+            <span class="fav-icon">{{if .IsFavorite}}★{{else}}☆{{end}}</span>
+            <span class="fav-text">{{if .IsFavorite}}Favori{{else}}Ajouter aux favoris{{end}}</span>
+          </button>
+          {{end}}
         </div>
       </div>
     </header>
@@ -199,6 +205,57 @@
         <p class="empty">Aucune relation géographique disponible.</p>
         {{end}}
       </section>
+
+      <!-- Section Commentaires -->
+      <section id="comments" class="comments-section">
+        <h2>💬 Commentaires</h2>
+        {{if .User}}
+        <form class="comment-form" action="/api/comment/add" method="POST">
+          <input type="hidden" name="artist_id" value="{{.Artist.ID}}">
+          <div class="comment-input-wrapper">
+            {{if .User.PhotoProfil}}
+            <img src="{{.User.PhotoProfil}}" alt="{{.User.Username}}" class="comment-avatar">
+            {{else}}
+            <div class="comment-avatar comment-avatar-placeholder">{{substr .User.Username 0 1 | upper}}</div>
+            {{end}}
+            <textarea name="content" placeholder="Écrire un commentaire..." required maxlength="1000" rows="2"></textarea>
+          </div>
+          <button type="submit" class="comment-submit-btn">Publier</button>
+        </form>
+        {{end}}
+
+        <div class="comments-list">
+          {{if .Comments}}
+            {{range .Comments}}
+            <div class="comment-card">
+              <div class="comment-header">
+                {{if .Photo}}
+                <img src="{{.Photo}}" alt="{{.Username}}" class="comment-avatar">
+                {{else}}
+                <div class="comment-avatar comment-avatar-placeholder">{{substr .Username 0 1 | upper}}</div>
+                {{end}}
+                <div class="comment-meta">
+                  <strong class="comment-author">{{.Username}}</strong>
+                  <span class="comment-date">{{.CreatedAt}}</span>
+                </div>
+                {{if $.User}}
+                  {{if eq $.User.ID .UserID}}
+                  <form class="comment-delete-form" action="/api/comment/delete" method="POST">
+                    <input type="hidden" name="comment_id" value="{{.ID}}">
+                    <input type="hidden" name="artist_id" value="{{.ArtistID}}">
+                    <button type="submit" class="comment-delete-btn" title="Supprimer">×</button>
+                  </form>
+                  {{end}}
+                {{end}}
+              </div>
+              <p class="comment-content">{{.Content}}</p>
+            </div>
+            {{end}}
+          {{else}}
+            <p class="empty">Aucun commentaire pour le moment. Soyez le premier !</p>
+          {{end}}
+        </div>
+      </section>
     </main>
     <footer class="footer">
       <div class="footer-content">
@@ -310,6 +367,36 @@
       } else {
         initPayPalButtons();
       }
+
+      // ─── Toggle Favori ────────────────────────────────────
+      document.addEventListener('DOMContentLoaded', function() {
+        const favBtn = document.getElementById('fav-btn');
+        if (!favBtn) return;
+        favBtn.addEventListener('click', function() {
+          const artistId = favBtn.getAttribute('data-artist-id');
+          const formData = new FormData();
+          formData.append('artist_id', artistId);
+          fetch('/api/favorite/toggle', {
+            method: 'POST',
+            body: formData
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.is_favorite) {
+              favBtn.classList.add('is-fav');
+              favBtn.querySelector('.fav-icon').textContent = '★';
+              favBtn.querySelector('.fav-text').textContent = 'Favori';
+              favBtn.title = 'Retirer des favoris';
+            } else {
+              favBtn.classList.remove('is-fav');
+              favBtn.querySelector('.fav-icon').textContent = '☆';
+              favBtn.querySelector('.fav-text').textContent = 'Ajouter aux favoris';
+              favBtn.title = 'Ajouter aux favoris';
+            }
+          })
+          .catch(err => console.error('Erreur favori:', err));
+        });
+      });
     </script>
   </body>
 </html>

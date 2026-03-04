@@ -115,11 +115,43 @@ func (s *Server) HandleArtist(w http.ResponseWriter, r *http.Request) {
 	locDates := BuildLocationDates(art.DatesLocations)
 	locationsCoords := GeocodeLocations(art.Locations, art.DatesLocations)
 
+	// Récupérer l'utilisateur connecté
+	var userProfile *UserProfile
+	var isFav bool
+	if IsAuthenticated(r) {
+		session, _ := GetSession(r)
+		if userID, ok := session.Values["user_id"].(int); ok {
+			user, err := GetUserByID(DB, userID)
+			if err == nil {
+				userProfile = &UserProfile{
+					ID:          user.ID,
+					Username:    user.Username,
+					Email:       user.Email,
+					Pseudo:      getStringValue(user.Pseudo),
+					Bio:         getStringValue(user.Bio),
+					PhotoProfil: getStringValue(user.PhotoProfil),
+					Role:        user.Role,
+				}
+				isFav = IsFavorite(DB, userID, id)
+			}
+		}
+	}
+
+	// Récupérer les commentaires
+	comments, err := GetCommentsByArtist(DB, id)
+	if err != nil {
+		log.Printf("Erreur récupération commentaires: %v", err)
+		comments = []Comment{}
+	}
+
 	data := ArtistPageData{
 		Artist:          art,
 		LocationDates:   locDates,
 		LocationsCoords: locationsCoords,
 		PayPalClientID:  PayPalClientID,
+		User:            userProfile,
+		IsFavorite:      isFav,
+		Comments:        comments,
 	}
 	s.Render(w, "artist.html", data)
 }
@@ -637,6 +669,123 @@ func (s *Server) HandleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+}
+
+// HandleToggleFavorite ajoute ou retire un artiste des favoris
+func (s *Server) HandleToggleFavorite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non supportée", http.StatusMethodNotAllowed)
+		return
+	}
+	session, err := GetSession(r)
+	if err != nil {
+		http.Error(w, "Session indisponible", http.StatusUnauthorized)
+		return
+	}
+	userID, ok := session.Values["user_id"].(int)
+	if !ok {
+		http.Error(w, "Non authentifié", http.StatusUnauthorized)
+		return
+	}
+
+	artistIDStr := r.FormValue("artist_id")
+	artistID, err := strconv.Atoi(artistIDStr)
+	if err != nil || artistID <= 0 {
+		http.Error(w, "ID artiste invalide", http.StatusBadRequest)
+		return
+	}
+
+	isFav, err := ToggleFavorite(DB, userID, artistID)
+	if err != nil {
+		log.Printf("Erreur toggle favori: %v", err)
+		http.Error(w, "Erreur serveur", http.StatusInternalServerError)
+		return
+	}
+
+	// Répondre en JSON pour les appels AJAX
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"is_favorite": isFav,
+	})
+}
+
+// HandleAddComment ajoute un commentaire sur un artiste
+func (s *Server) HandleAddComment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non supportée", http.StatusMethodNotAllowed)
+		return
+	}
+	session, err := GetSession(r)
+	if err != nil {
+		http.Error(w, "Session indisponible", http.StatusUnauthorized)
+		return
+	}
+	userID, ok := session.Values["user_id"].(int)
+	if !ok {
+		http.Error(w, "Non authentifié", http.StatusUnauthorized)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Requête invalide", http.StatusBadRequest)
+		return
+	}
+
+	artistIDStr := r.FormValue("artist_id")
+	artistID, err := strconv.Atoi(artistIDStr)
+	if err != nil || artistID <= 0 {
+		http.Error(w, "ID artiste invalide", http.StatusBadRequest)
+		return
+	}
+	content := r.FormValue("content")
+
+	if err := AddComment(DB, userID, artistID, content); err != nil {
+		log.Printf("Erreur ajout commentaire: %v", err)
+		http.Error(w, "Erreur lors de l'ajout du commentaire", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/artist?id=%d#comments", artistID), http.StatusSeeOther)
+}
+
+// HandleDeleteComment supprime un commentaire (par son auteur)
+func (s *Server) HandleDeleteComment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non supportée", http.StatusMethodNotAllowed)
+		return
+	}
+	session, err := GetSession(r)
+	if err != nil {
+		http.Error(w, "Session indisponible", http.StatusUnauthorized)
+		return
+	}
+	userID, ok := session.Values["user_id"].(int)
+	if !ok {
+		http.Error(w, "Non authentifié", http.StatusUnauthorized)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Requête invalide", http.StatusBadRequest)
+		return
+	}
+
+	commentIDStr := r.FormValue("comment_id")
+	commentID, err := strconv.Atoi(commentIDStr)
+	if err != nil || commentID <= 0 {
+		http.Error(w, "ID commentaire invalide", http.StatusBadRequest)
+		return
+	}
+	artistIDStr := r.FormValue("artist_id")
+	artistID, _ := strconv.Atoi(artistIDStr)
+
+	if err := DeleteComment(DB, commentID, userID); err != nil {
+		log.Printf("Erreur suppression commentaire: %v", err)
+		http.Error(w, "Erreur lors de la suppression", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/artist?id=%d#comments", artistID), http.StatusSeeOther)
 }
 
 // HandleLegalConditions affiche la page des conditions générales de vente

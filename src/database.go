@@ -64,6 +64,34 @@ CREATE TABLE IF NOT EXISTS users (
 		return fmt.Errorf("création table users: %w", err)
 	}
 
+	const favoritesTable = `
+CREATE TABLE IF NOT EXISTS favorites (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    artist_id INT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_fav (user_id, artist_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+`
+	if _, err := db.Exec(favoritesTable); err != nil {
+		return fmt.Errorf("création table favorites: %w", err)
+	}
+
+	const commentsTable = `
+CREATE TABLE IF NOT EXISTS comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    artist_id INT NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+`
+	if _, err := db.Exec(commentsTable); err != nil {
+		return fmt.Errorf("création table comments: %w", err)
+	}
+
 	alterQueries := []string{
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS pseudo VARCHAR(255) DEFAULT NULL",
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT NULL",

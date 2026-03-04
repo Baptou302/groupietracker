@@ -157,4 +157,91 @@ func DeleteUser(db *sql.DB, userID int) error {
 	return nil
 }
 
+// ─── Favorites ───────────────────────────────────────────────
 
+func ToggleFavorite(db *sql.DB, userID, artistID int) (bool, error) {
+	var exists int
+	err := db.QueryRow("SELECT COUNT(*) FROM favorites WHERE user_id = ? AND artist_id = ?", userID, artistID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("vérification favori: %w", err)
+	}
+	if exists > 0 {
+		_, err = db.Exec("DELETE FROM favorites WHERE user_id = ? AND artist_id = ?", userID, artistID)
+		return false, err
+	}
+	_, err = db.Exec("INSERT INTO favorites (user_id, artist_id) VALUES (?, ?)", userID, artistID)
+	return true, err
+}
+
+func IsFavorite(db *sql.DB, userID, artistID int) bool {
+	var count int
+	err := db.QueryRow("SELECT COUNT(*) FROM favorites WHERE user_id = ? AND artist_id = ?", userID, artistID).Scan(&count)
+	return err == nil && count > 0
+}
+
+func GetUserFavorites(db *sql.DB, userID int) ([]int, error) {
+	rows, err := db.Query("SELECT artist_id FROM favorites WHERE user_id = ? ORDER BY created_at DESC", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// ─── Comments ────────────────────────────────────────────────
+
+func AddComment(db *sql.DB, userID, artistID int, content string) error {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return fmt.Errorf("commentaire vide")
+	}
+	_, err := db.Exec("INSERT INTO comments (user_id, artist_id, content) VALUES (?, ?, ?)", userID, artistID, content)
+	if err != nil {
+		return fmt.Errorf("ajout commentaire: %w", err)
+	}
+	return nil
+}
+
+func DeleteComment(db *sql.DB, commentID, userID int) error {
+	_, err := db.Exec("DELETE FROM comments WHERE id = ? AND user_id = ?", commentID, userID)
+	if err != nil {
+		return fmt.Errorf("suppression commentaire: %w", err)
+	}
+	return nil
+}
+
+func GetCommentsByArtist(db *sql.DB, artistID int) ([]Comment, error) {
+	const query = `
+SELECT c.id, c.user_id, c.artist_id, c.content,
+       COALESCE(u.pseudo, u.username) AS username,
+       COALESCE(u.photo_profil, '') AS photo,
+       DATE_FORMAT(c.created_at, '%d/%m/%Y %H:%i') AS created_at
+FROM comments c
+JOIN users u ON u.id = c.user_id
+WHERE c.artist_id = ?
+ORDER BY c.created_at DESC`
+
+	rows, err := db.Query(query, artistID)
+	if err != nil {
+		return nil, fmt.Errorf("lecture commentaires: %w", err)
+	}
+	defer rows.Close()
+
+	var comments []Comment
+	for rows.Next() {
+		var c Comment
+		if err := rows.Scan(&c.ID, &c.UserID, &c.ArtistID, &c.Content, &c.Username, &c.Photo, &c.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan commentaire: %w", err)
+		}
+		comments = append(comments, c)
+	}
+	return comments, rows.Err()
+}

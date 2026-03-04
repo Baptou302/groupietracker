@@ -82,6 +82,19 @@ type ArtistPageData struct {
 	LocationDates   []LocationDates
 	LocationsCoords []LocationWithCoords
 	PayPalClientID  string
+	User            *UserProfile
+	IsFavorite      bool
+	Comments        []Comment
+}
+
+type Comment struct {
+	ID        int
+	UserID    int
+	ArtistID  int
+	Content   string
+	Username  string
+	Photo     string
+	CreatedAt string
 }
 
 type LoginPageData struct {
